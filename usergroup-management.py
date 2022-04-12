@@ -187,53 +187,86 @@ class UserGroupManagementFauxapi():
             response_data[alias['name']] = alias
             del (response_data[alias['name']]['name'])
         return response_data
-    
-    def add_alias(self, aliasname):
+
+    def manage_aliases(self, aliasname, attributes):
         self._reload_system_config()
 
-        alias_index, alias = self._get_entity('aliases', 'alias', 'name', aliasname)
-        if alias_index is not None:
-            raise UserGroupManagementFauxapiException('alias already exists', aliasname)
+        valid_attributes = ['type', 'ip', 'descr', 'mail']
 
-        alias = {
-            'name': aliasname,
-            'type': 'host',
-            'descr': '',
-            'address': '10.0.8.102',
-            'detail': '2',
-            'apply': '',
-        }
+        alias_index, alias = self._get_entity('aliases', 'alias', 'name', aliasname)
+        # if alias_index is not None:
+        #     raise UserGroupManagementFauxapiException('alias already exists', aliasname)
+
+        if type(attributes) != dict:
+            raise UserGroupManagementFauxapiException('attributes is incorrect type')
+        for attribute, value in attributes.items():
+            if attribute not in valid_attributes:
+                raise UserGroupManagementFauxapiException('unsupported attribute type', attribute)
+
+            if attribute == 'ip':
+                alias['address'] = alias['address'] + ' ' + value
+            elif attribute == 'mail':
+                alias['detail'] = alias['detail'] + '||' + value
 
         patch_aliases_alias = {
             'aliases': {
                 'alias': self.system_config['aliases']['alias']
             }
         }
-        patch_aliases_alias['aliases']['alias'].append(alias)
+        patch_aliases_alias['aliases']['alias'][alias_index] = alias
 
         response = self.FauxapiLib.config_patch(patch_aliases_alias)
         if response['message'] != 'ok':
             raise UserGroupManagementFauxapiException('unable to add alias', response['message'])
-
+        
         return alias
+
+        # def add_alias(self, aliasname):
+    #     self._reload_system_config()
+    #
+    #     alias_index, alias = self._get_entity('aliases', 'alias', 'name', aliasname)
+    #     if alias_index is not None:
+    #         raise UserGroupManagementFauxapiException('alias already exists', aliasname)
+    #
+    #     alias = {
+    #         'name': aliasname,
+    #         'type': 'host',
+    #         'descr': '',
+    #         'address': '10.0.8.102',
+    #         'detail': '2',
+    #         'apply': '',
+    #     }
+    #
+    #     patch_aliases_alias = {
+    #         'aliases': {
+    #             'alias': self.system_config['aliases']['alias']
+    #         }
+    #     }
+    #     patch_aliases_alias['aliases']['alias'].append(alias)
+    #
+    #     response = self.FauxapiLib.config_patch(patch_aliases_alias)
+    #     if response['message'] != 'ok':
+    #         raise UserGroupManagementFauxapiException('unable to add alias', response['message'])
+    #
+    #     return alias
 
     # openvpn client specific overrides functions
     # =========================================================================
 
-    def add_openvpn_csc(self, commonName):
+    def add_openvpn_csc(self, common_name, tunnel_network):
         self._reload_system_config()
 
-        csc_index, openvpn_csc = self._get_entity('openvpn', 'openvpn-csc', 'common_name', commonName)
+        csc_index, openvpn_csc = self._get_entity('openvpn', 'openvpn-csc', 'common_name', common_name)
         if csc_index is not None:
-            raise UserGroupManagementFauxapiException('openvpn client specific overrides already exists', commonName)
+            raise UserGroupManagementFauxapiException('openvpn client specific overrides already exists', common_name)
 
         openvpn_csc = {
-            "common_name": commonName,
+            "common_name": common_name,
             "server_list": '1',
             "custom_options": '',
             "block": "",
-            "description": '',
-            "tunnel_network": '10.0.8.105/24',
+            "description": common_name,
+            "tunnel_network": tunnel_network,
             "tunnel_networkv6": '',
             "local_network": '',
             "local_networkv6": '',
@@ -264,7 +297,7 @@ class UserGroupManagementFauxapi():
         self._reload_system_config()
 
         response_data = {}
-        for openvpn_csc in self.system_config['opencpn']['openvpn_csc']:
+        for openvpn_csc in self.system_config['openvpn']['openvpn-csc']:
             response_data[openvpn_csc['common_name']] = openvpn_csc
             del (response_data[openvpn_csc['common_name']]['common_name'])
         return response_data
@@ -412,18 +445,23 @@ class UserGroupManagementFauxapi():
 
 if __name__ == '__main__':
     UGMF = UserGroupManagementFauxapi(fauxapi_host, fauxapi_apikey, fauxapi_apisecret)
-
+    # FauxapiLib = PfsenseFauxapi(fauxapi_host, fauxapi_apikey, fauxapi_apisecret)
+    # a = FauxapiLib.config_get()
+    # print(json.dumps(a))
     # # get_users
     # users = UGMF.get_users()
     # print(json.dumps(users))
     
     # get_aliases
-    aliases = UGMF.get_aliases()
-    print(json.dumps(aliases))
+    # aliases = UGMF.get_aliases()
+    # print(json.dumps(aliases))
+    
+    # aliases2 = UGMF.update_alias_in_config('test172', '', '10.0.8.105', '2')
+    # print(json.dumps(aliases2))
 
     # get_openvpn_csc
-    openvpn_csc = UGMF.get_openvpn_csc()
-    print(json.dumps(openvpn_csc))
+    # openvpn_csc = UGMF.get_openvpn_csc()
+    # print(json.dumps(openvpn_csc))
     #
     # # get_groups
     # groups = UGMF.get_groups()
@@ -438,21 +476,26 @@ if __name__ == '__main__':
     # alias = UGMF.add_alias('test222')
     # print(json.dumps(alias))
     # 
-    # openvpn_csc = UGMF.add_openvpn_csc('test222')
+    # openvpn_csc = UGMF.add_openvpn_csc('aa@ukr.net', '192.168.25.32/21')
     # print(json.dumps(openvpn_csc))
 
     # manage_user attributes
     # attributes = {
     #     'disabled': False,
-    #     'descr': 'some new name',
-    #     'password': 'awesomepassword',
-    #     'expires': '12/25/2025',
-    #     'authorizedkeys': 'insert-ssh-key-material-here',
-    #     'priv': ['page-all'],
+    #     'descr': 'some new name22222',
+    #     # 'password': 'awesomepassword',
+    #     # 'expires': '12/25/2025',
+    #     # 'authorizedkeys': 'insert-ssh-key-material-here',
+    #     # 'priv': ['page-all'],
     # }
     # user = UGMF.manage_user('someuser', attributes)
     # print(json.dumps(user))
 
+    attributes = {
+        'ip': '192.168.25.34',
+        'mail': 'gg@ukr.net'
+    }
+    user = UGMF.manage_aliases('close_local_conn', attributes)
     # =========================================================================
 
     # # add_group
