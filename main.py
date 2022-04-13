@@ -23,7 +23,7 @@ try:
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from PfsenseFauxapi.PfsenseFauxapi import PfsenseFauxapi
-
+# pip3 install pfsense-fauxapi
 
 def usage():
     print()
@@ -44,17 +44,17 @@ def usage():
 #     usage()
 
 # config
-# fauxapi_host=sys.argv[1]
+
 fauxapi_host = '192.168.89.17'
 fauxapi_apikey = os.getenv('FAUXAPI_APIKEY')
 fauxapi_apisecret = os.getenv('FAUXAPI_APISECRET')
 
 
-class UserGroupManagementFauxapiException(Exception):
+class ManagementFauxapiException(Exception):
     pass
 
 
-class UserGroupManagementFauxapi():
+class ManagementFauxapi():
     fauxapi_host = None
     fauxapi_apikey = None
     fauxapi_apisecret = None
@@ -83,7 +83,7 @@ class UserGroupManagementFauxapi():
 
         user_index, user = self._get_entity('system', 'user', 'name', username)
         if user_index is not None:
-            raise UserGroupManagementFauxapiException('user already exists', username)
+            raise ManagementFauxapiException('user already exists', username)
 
         user = {
             'scope': 'user',
@@ -107,7 +107,7 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_system_user)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to add user', response['message'])
+            raise ManagementFauxapiException('unable to add user', response['message'])
 
         self._increment_next_id('uid')
 
@@ -121,14 +121,14 @@ class UserGroupManagementFauxapi():
 
         user_index, user = self._get_entity('system', 'user', 'name', username)
         if user_index is None:
-            raise UserGroupManagementFauxapiException('user does not exist', username)
+            raise ManagementFauxapiException('user does not exist', username)
 
         if type(attributes) != dict:
-            raise UserGroupManagementFauxapiException('attributes is incorrect type')
+            raise ManagementFauxapiException('attributes is incorrect type')
 
         for attribute, value in attributes.items():
             if attribute not in valid_attributes:
-                raise UserGroupManagementFauxapiException('unsupported attribute type', attribute)
+                raise ManagementFauxapiException('unsupported attribute type', attribute)
 
             if attribute == 'disabled':
                 if value is True:
@@ -153,7 +153,7 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_system_user)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to manage user', response['message'])
+            raise ManagementFauxapiException('unable to manage user', response['message'])
 
         return user
 
@@ -162,7 +162,7 @@ class UserGroupManagementFauxapi():
 
         user_index, user = self._get_entity('system', 'user', 'name', username)
         if user_index is None:
-            raise UserGroupManagementFauxapiException('user does not exist', username)
+            raise ManagementFauxapiException('user does not exist', username)
 
         patch_system_user = {
             'system': {
@@ -173,7 +173,7 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_system_user)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to remove user', response['message'])
+            raise ManagementFauxapiException('unable to remove user', response['message'])
 
         return user
 
@@ -188,6 +188,35 @@ class UserGroupManagementFauxapi():
             del (response_data[alias['name']]['name'])
         return response_data
 
+    def add_alias(self, aliasname, ip):
+        self._reload_system_config()
+
+        alias_index, alias = self._get_entity('aliases', 'alias', 'name', aliasname)
+        if alias_index is not None:
+            raise ManagementFauxapiException('alias already exists', aliasname)
+
+        alias = {
+            'name': aliasname,
+            'type': 'host',
+            'descr': '',
+            'address': ip,
+            'detail': '2',
+            'apply': '',
+        }
+
+        patch_aliases_alias = {
+            'aliases': {
+                'alias': self.system_config['aliases']['alias']
+            }
+        }
+        patch_aliases_alias['aliases']['alias'].append(alias)
+
+        response = self.FauxapiLib.config_patch(patch_aliases_alias)
+        if response['message'] != 'ok':
+            raise ManagementFauxapiException('unable to add alias', response['message'])
+
+        return alias
+
     def manage_aliases(self, aliasname, attributes):
         self._reload_system_config()
 
@@ -198,10 +227,10 @@ class UserGroupManagementFauxapi():
         #     raise UserGroupManagementFauxapiException('alias already exists', aliasname)
 
         if type(attributes) != dict:
-            raise UserGroupManagementFauxapiException('attributes is incorrect type')
+            raise ManagementFauxapiException('attributes is incorrect type')
         for attribute, value in attributes.items():
             if attribute not in valid_attributes:
-                raise UserGroupManagementFauxapiException('unsupported attribute type', attribute)
+                raise ManagementFauxapiException('unsupported attribute type', attribute)
 
             if attribute == 'ip':
                 alias['address'] = alias['address'] + ' ' + value
@@ -217,48 +246,28 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_aliases_alias)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to add alias', response['message'])
+            raise ManagementFauxapiException('unable to add alias', response['message'])
         
         return alias
 
-        # def add_alias(self, aliasname):
-    #     self._reload_system_config()
-    #
-    #     alias_index, alias = self._get_entity('aliases', 'alias', 'name', aliasname)
-    #     if alias_index is not None:
-    #         raise UserGroupManagementFauxapiException('alias already exists', aliasname)
-    #
-    #     alias = {
-    #         'name': aliasname,
-    #         'type': 'host',
-    #         'descr': '',
-    #         'address': '10.0.8.102',
-    #         'detail': '2',
-    #         'apply': '',
-    #     }
-    #
-    #     patch_aliases_alias = {
-    #         'aliases': {
-    #             'alias': self.system_config['aliases']['alias']
-    #         }
-    #     }
-    #     patch_aliases_alias['aliases']['alias'].append(alias)
-    #
-    #     response = self.FauxapiLib.config_patch(patch_aliases_alias)
-    #     if response['message'] != 'ok':
-    #         raise UserGroupManagementFauxapiException('unable to add alias', response['message'])
-    #
-    #     return alias
-
     # openvpn client specific overrides functions
     # =========================================================================
+
+    def get_openvpn_csc(self):
+        self._reload_system_config()
+
+        response_data = {}
+        for openvpn_csc in self.system_config['openvpn']['openvpn-csc']:
+            response_data[openvpn_csc['common_name']] = openvpn_csc
+            del (response_data[openvpn_csc['common_name']]['common_name'])
+        return response_data
 
     def add_openvpn_csc(self, common_name, tunnel_network):
         self._reload_system_config()
 
         csc_index, openvpn_csc = self._get_entity('openvpn', 'openvpn-csc', 'common_name', common_name)
         if csc_index is not None:
-            raise UserGroupManagementFauxapiException('openvpn client specific overrides already exists', common_name)
+            raise ManagementFauxapiException('openvpn client specific overrides already exists', common_name)
 
         openvpn_csc = {
             "common_name": common_name,
@@ -272,7 +281,7 @@ class UserGroupManagementFauxapi():
             "local_networkv6": '',
             "remote_network": '',
             "remote_networkv6": '',
-            "gwredir": '',
+            "gwredir": 'yes',
             "push_reset": '',
             "remove_route": '',
             "netbios_enable": '',
@@ -289,18 +298,9 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_csc)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to add openvpn_csc', response['message'])
+            raise ManagementFauxapiException('unable to add openvpn_csc', response['message'])
 
         return openvpn_csc
-
-    def get_openvpn_csc(self):
-        self._reload_system_config()
-
-        response_data = {}
-        for openvpn_csc in self.system_config['openvpn']['openvpn-csc']:
-            response_data[openvpn_csc['common_name']] = openvpn_csc
-            del (response_data[openvpn_csc['common_name']]['common_name'])
-        return response_data
 
     # group functions
     # =========================================================================
@@ -319,7 +319,7 @@ class UserGroupManagementFauxapi():
 
         group_index, group = self._get_entity('system', 'group', 'name', groupname)
         if group_index is not None:
-            raise UserGroupManagementFauxapiException('group already exists', groupname)
+            raise ManagementFauxapiException('group already exists', groupname)
 
         group = {
             'scope': 'local',
@@ -337,7 +337,7 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_system_group)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to add group', response['message'])
+            raise ManagementFauxapiException('unable to add group', response['message'])
 
         self._increment_next_id('gid')
 
@@ -350,21 +350,21 @@ class UserGroupManagementFauxapi():
 
         group_index, group = self._get_entity('system', 'group', 'name', groupname)
         if group_index is None:
-            raise UserGroupManagementFauxapiException('group does not exist', groupname)
+            raise ManagementFauxapiException('group does not exist', groupname)
 
         if type(attributes) != dict:
-            raise UserGroupManagementFauxapiException('attributes is incorrect type')
+            raise ManagementFauxapiException('attributes is incorrect type')
 
         for attribute, value in attributes.items():
             if attribute not in valid_attributes:
-                raise UserGroupManagementFauxapiException('unsupported attribute type', attribute)
+                raise ManagementFauxapiException('unsupported attribute type', attribute)
 
             if attribute == 'member':
                 if type(value) != list:
-                    raise UserGroupManagementFauxapiException('member attribute is incorrect type')
+                    raise ManagementFauxapiException('member attribute is incorrect type')
             elif attribute == 'priv':
                 if type(value) != list:
-                    raise UserGroupManagementFauxapiException('priv attribute is incorrect type')
+                    raise ManagementFauxapiException('priv attribute is incorrect type')
 
             if len(value) == 0 and attribute in group:
                 del (group[attribute])
@@ -380,7 +380,7 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_system_group)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to manage group', response['message'])
+            raise ManagementFauxapiException('unable to manage group', response['message'])
 
         return group
 
@@ -389,7 +389,7 @@ class UserGroupManagementFauxapi():
 
         group_index, group = self._get_entity('system', 'group', 'name', groupname)
         if group_index is None:
-            raise UserGroupManagementFauxapiException('group does not exist', groupname)
+            raise ManagementFauxapiException('group does not exist', groupname)
 
         patch_system_group = {
             'system': {
@@ -400,7 +400,7 @@ class UserGroupManagementFauxapi():
 
         response = self.FauxapiLib.config_patch(patch_system_group)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to remove group', response['message'])
+            raise ManagementFauxapiException('unable to remove group', response['message'])
 
         return group
 
@@ -436,7 +436,7 @@ class UserGroupManagementFauxapi():
         }
         response = self.FauxapiLib.config_patch(patch_system_nextid)
         if response['message'] != 'ok':
-            raise UserGroupManagementFauxapiException('unable to increment the nextid', id_type)
+            raise ManagementFauxapiException('unable to increment the nextid', id_type)
         return next_id
 
     def _reload_system_config(self):
@@ -444,40 +444,41 @@ class UserGroupManagementFauxapi():
 
 
 if __name__ == '__main__':
-    UGMF = UserGroupManagementFauxapi(fauxapi_host, fauxapi_apikey, fauxapi_apisecret)
-    # FauxapiLib = PfsenseFauxapi(fauxapi_host, fauxapi_apikey, fauxapi_apisecret)
-    # a = FauxapiLib.config_get()
-    # print(json.dumps(a))
-    # # get_users
-    # users = UGMF.get_users()
-    # print(json.dumps(users))
-    
-    # get_aliases
-    # aliases = UGMF.get_aliases()
-    # print(json.dumps(aliases))
-    
-    # aliases2 = UGMF.update_alias_in_config('test172', '', '10.0.8.105', '2')
-    # print(json.dumps(aliases2))
+    MF = ManagementFauxapi(fauxapi_host, fauxapi_apikey, fauxapi_apisecret)
 
-    # get_openvpn_csc
-    # openvpn_csc = UGMF.get_openvpn_csc()
-    # print(json.dumps(openvpn_csc))
-    #
-    # # get_groups
-    # groups = UGMF.get_groups()
-    # print(json.dumps(groups))
+    mail = 'vskakun@c4r.eu'
+    tunnel_network = '192.168.25.32/21'
 
+    aliases = [
+        'AVRORA_10_13_148_D',
+        'AVRORA_10_13_149_D',
+        'BRAVO_192_168_13_D',
+        'KOPEIKA_10_50_10_D',
+        'KOPEIKA_10_50_12_D',
+        'KOPEIKA_10_50_250_D',
+        'KOPEIKA_10_81_10_D',
+        'LINELLA_10_110_0_D',
+        'LOCAL_192_168_89_D',
+        'MAGNUM_10_70_122_D',
+        'MAGNUM_10_70_7_D',
+        'MAGNUM_172_16_10_D',
+        'MAGNUM_172_16_11_D',
+        'NOVUS_172_16_13_D',
+        'SLATA_10_1_54_D',
+        'TABYSH_ALL_D'
+    ]
+    openvpn_csc = MF.add_openvpn_csc(mail, tunnel_network)
+
+    attributes = {
+        'ip': tunnel_network[:-3],
+        'mail': mail
+    }
+    for aliasname in aliases:
+        user = MF.manage_aliases(aliasname, attributes)
+
+    # openvpn_csc = MF.get_openvpn_csc()
+    # print(openvpn_csc)
     # =========================================================================
-
-    # add_user
-    # user = UGMF.add_user('someuser222')
-    # print(json.dumps(user))
-    # 
-    # alias = UGMF.add_alias('test222')
-    # print(json.dumps(alias))
-    # 
-    # openvpn_csc = UGMF.add_openvpn_csc('aa@ukr.net', '192.168.25.32/21')
-    # print(json.dumps(openvpn_csc))
 
     # manage_user attributes
     # attributes = {
@@ -491,11 +492,6 @@ if __name__ == '__main__':
     # user = UGMF.manage_user('someuser', attributes)
     # print(json.dumps(user))
 
-    attributes = {
-        'ip': '192.168.25.34',
-        'mail': 'gg@ukr.net'
-    }
-    user = UGMF.manage_aliases('close_local_conn', attributes)
     # =========================================================================
 
     # # add_group
