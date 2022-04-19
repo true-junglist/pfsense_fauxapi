@@ -25,29 +25,70 @@ except:
     from PfsenseFauxapi.PfsenseFauxapi import PfsenseFauxapi
 # pip3 install pfsense-fauxapi
 
+fauxapi_host = '192.168.89.17'
+# fauxapi_host = '192.168.89.253'
+fauxapi_apikey = os.getenv('FAUXAPI_APIKEY')
+fauxapi_apisecret = os.getenv('FAUXAPI_APISECRET')
+
+aliasdict = {
+    'avr': ('AVRORA_10_13_148_D', 'AVRORA_10_13_149_D'),
+    'brv': ('BRAVO_192_168_13_D'),
+    'kop': ('KOPEIKA_10_50_10_D', 'KOPEIKA_10_50_12_D', 'KOPEIKA_10_50_250_D', 'KOPEIKA_10_81_10_D'),
+    'lin': ('LINELLA_10_110_0_D'),
+    'loc': ('LOCAL_192_168_89_D'),
+    'mag': ('MAGNUM_10_70_122_D', 'MAGNUM_10_70_7_D', 'MAGNUM_172_16_10_D', 'MAGNUM_172_16_11_D'),
+    'nov': ('NOVUS_172_16_13_D'),
+    'slt': ('SLATA_10_1_54_D'),
+    'tab': ('TABYSH_ALL_D'),
+}
+
+valid_attributes = ['avr', 'brv', 'kop', 'lin', 'loc', 'mag',
+                            'nov', 'slt', 'tab']
+
 def usage():
     print()
-    print('usage: ' + sys.argv[0] + ' <host>')
+    print('usage: ' + sys.argv[0] + ' <mail@cr4.eu>' + ' <192.168.24.i/21>')
     print()
     print('  Environment variables containing credentials MUST be set before use!')
     print('    $ export FAUXAPI_APIKEY=PFFAyourkeyvalue')
     print('    $ export FAUXAPI_APISECRET=devtrashdevtrashdevtrashdevtrashdevtrash')
     print()
-    print('pipe JSON output through jq for easy pretty print output:-')
-    print(' $ ' + sys.argv[0] + ' <host> | jq .')
+    print()
+    print()
     print()
     sys.exit(1)
 
+def get_aliases(valid_attributes, aliasdict):
+    aliases = []
+    for attribute in valid_attributes:
+        if type(aliasdict.get(attribute)) is tuple:
+            for i in aliasdict.get(attribute):
+                aliases.append(i)
+        else:
+            aliases.append(aliasdict.get(attribute))
+    return aliases
 
-# check args and env exist
-# if (len(sys.argv) != 2) or not os.getenv('FAUXAPI_APIKEY') or not os.getenv('FAUXAPI_APISECRET'):
-#     usage()
-
-# config
-
-fauxapi_host = '192.168.89.17'
-fauxapi_apikey = os.getenv('FAUXAPI_APIKEY')
-fauxapi_apisecret = os.getenv('FAUXAPI_APISECRET')
+# mail = 'kkryzhanivska@c4r.eu'
+# tunnel_network = '192.168.24.33/21'
+#
+# aliases = [
+#         'AVRORA_10_13_148_D',
+#         'AVRORA_10_13_149_D',
+#         'BRAVO_192_168_13_D',
+#         'KOPEIKA_10_50_10_D',
+#         'KOPEIKA_10_50_12_D',
+#         'KOPEIKA_10_50_250_D',
+#         'KOPEIKA_10_81_10_D',
+#         'LINELLA_10_110_0_D',
+#         'LOCAL_192_168_89_D',
+#         'MAGNUM_10_70_122_D',
+#         'MAGNUM_10_70_7_D',
+#         'MAGNUM_172_16_10_D',
+#         'MAGNUM_172_16_11_D',
+#         'NOVUS_172_16_13_D',
+#         'SLATA_10_1_54_D',
+#         'TABYSH_ALL_D'
+#     ]
 
 
 class ManagementFauxapiException(Exception):
@@ -444,38 +485,40 @@ class ManagementFauxapi():
 
 
 if __name__ == '__main__':
+    # check args and env exist
+    if (len(sys.argv) < 3) or not os.getenv('FAUXAPI_APIKEY') or not os.getenv('FAUXAPI_APISECRET'):
+        usage()
+    elif len(sys.argv) == 3:
+        mail = sys.argv[1]
+        tunnel_network = sys.argv[2]
+        MF = ManagementFauxapi(fauxapi_host, fauxapi_apikey, fauxapi_apisecret)
+        openvpn_csc = MF.add_openvpn_csc(mail, tunnel_network)
+        exit(0)
+    else:
+        mail, tunnel_network, *attributes = sys.argv[1:]
+
+    if attributes[0] == '-':
+        aliaseslist = get_aliases(valid_attributes, aliasdict)
+    else:
+        for attribute in attributes:
+            if attribute not in valid_attributes:
+                usage()
+            else:
+                valid_attributes.remove(attribute)
+        aliaseslist = get_aliases(valid_attributes, aliasdict)
+
+
     MF = ManagementFauxapi(fauxapi_host, fauxapi_apikey, fauxapi_apisecret)
-
-    mail = 'vskakun@c4r.eu'
-    tunnel_network = '192.168.25.32/21'
-
-    aliases = [
-        'AVRORA_10_13_148_D',
-        'AVRORA_10_13_149_D',
-        'BRAVO_192_168_13_D',
-        'KOPEIKA_10_50_10_D',
-        'KOPEIKA_10_50_12_D',
-        'KOPEIKA_10_50_250_D',
-        'KOPEIKA_10_81_10_D',
-        'LINELLA_10_110_0_D',
-        'LOCAL_192_168_89_D',
-        'MAGNUM_10_70_122_D',
-        'MAGNUM_10_70_7_D',
-        'MAGNUM_172_16_10_D',
-        'MAGNUM_172_16_11_D',
-        'NOVUS_172_16_13_D',
-        'SLATA_10_1_54_D',
-        'TABYSH_ALL_D'
-    ]
     openvpn_csc = MF.add_openvpn_csc(mail, tunnel_network)
 
     attributes = {
         'ip': tunnel_network[:-3],
         'mail': mail
     }
-    for aliasname in aliases:
+    for aliasname in aliaseslist:
         user = MF.manage_aliases(aliasname, attributes)
 
+    exit(0)
     # openvpn_csc = MF.get_openvpn_csc()
     # print(openvpn_csc)
     # =========================================================================
